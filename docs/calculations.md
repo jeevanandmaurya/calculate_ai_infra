@@ -239,8 +239,8 @@ Non-finite sweep points are skipped; the caption reports the plotted Y range.
 
 ## Assumptions & limitations
 
-> Experimental estimates — verify before spending. Found a bug? Please file an
-> issue on this repo with the model, your inputs, the copied report, and what
+> Experimental estimates — verify before spending. Found a bug? Please [file an
+> issue](https://github.com/jeevanandmaurya/calculate_ai_infra/issues/new) with the model, your inputs, the copied report, and what
 > you expected vs what the app showed.
 
 - Throughput numbers are roofline estimates; real deployments land at

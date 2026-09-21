@@ -129,7 +129,7 @@ run before spending money. Throughput assumes ideal kernels/scheduling, GPU
 $/h moves with the market, and the Vast.ai medians are peer listings, not
 quotes.
 
-Found a bug? Please file an issue on this repo with:
+Found a bug? Please [file an issue](https://github.com/jeevanandmaurya/calculate_ai_infra/issues/new) with:
 
 1. The model (preset / HF repo / OpenRouter id) and a screenshot or the copied
    report,
