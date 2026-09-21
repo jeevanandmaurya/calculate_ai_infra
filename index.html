@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AI Infra Calculator — inference &amp; training compute</title>
+<meta name="description" content="GPU memory, GPU count, throughput and training time for a transformer of a given size and architecture.">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">▚</span>
+      <span class="brand-name">AI Infra Calculator</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Mode">
+      <button class="tab is-active" role="tab" aria-selected="true" data-tab="inference" id="tab-inference">Inference</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="training" id="tab-training">Training</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="method" id="tab-method">Methodology</button>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+      <svg class="icon-sun" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3.2"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6L13 13M13 3l-1.4 1.4M4.4 11.6L3 13"/></svg>
+      <svg class="icon-moon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7Z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="layout">
+  <p class="warn-banner" role="note">Experimental estimates — verify before spending. Found a bug? Please report it with the model, your inputs, and what you expected.<!-- TODO: link repo here once uploaded, e.g. <a href="https://github.com/YOU/REPO/issues">file an issue</a> --></p>
+  <section class="inputs" aria-label="Inputs">
+
+
+    <fieldset class="group" id="g-model">
+      <legend>Model</legend>
+      <div class="or-row">
+        <div class="field or-field">
+          <label for="or-search">Fetch from OpenRouter</label>
+          <input type="text" id="or-search" class="input mono" placeholder="Type to search the live catalog…" autocomplete="off" spellcheck="false">
+          <div class="or-menu" id="or-menu" role="listbox" hidden></div>
+          <p class="hint" id="or-status"><a href="https://openrouter.ai/api/v1/models" target="_blank" rel="noopener">openrouter.ai/api/v1/models</a> · no key required · sizes parsed from vendor naming</p>
+        </div>
+        <button class="btn" id="or-fetch" type="button">Load catalog</button>
+      </div>
+      <div class="or-picked" id="or-picked" hidden></div>
+      <div class="grid">
+        <div class="field">
+          <label for="m-preset">Architecture preset</label>
+          <select id="m-preset" class="input"></select>
+        </div>
+        <div class="field">
+          <label for="m-name">Name</label>
+          <input type="text" id="m-name" class="input" value="" placeholder="—">
+        </div>
+        <div class="field">
+          <label for="m-params">Total parameters <span class="unit">B</span></label>
+          <input type="number" id="m-params" class="input mono" min="0" step="0.1" value="" placeholder="—">
+        </div>
+        <div class="field">
+          <label for="m-active">Active params / token <span class="unit">B</span></label>
+          <input type="number" id="m-active" class="input mono" min="0" step="0.1" value="" placeholder="—">
+          <p class="hint">Equals total for dense. For MoE, only the activated slice is read per decode step.</p>
+        </div>
+        <div class="field">
+          <label for="m-vocab">Vocab size</label>
+          <input type="number" id="m-vocab" class="input mono" min="0" step="1000" value="" placeholder="—">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="group" id="g-arch">
+      <legend>Architecture</legend>
+      <div class="hf-row">
+        <div class="field hf-field">
+          <label for="a-hfrepo">Hugging Face repo — auto-fill architecture</label>
+          <input type="text" id="a-hfrepo" class="input mono" placeholder="org/model  e.g. Qwen/Qwen3-30B-A3B" autocomplete="off" spellcheck="false">
+          <p class="hint" id="a-hfstatus">Keyless: config.json → GGUF header (64 KB range) → public GGUF mirror for gated repos</p>
+        </div>
+        <button class="btn" id="a-autofill" type="button">Auto-fill</button>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="a-type">Attention</label>
+          <select id="a-type" class="input">
+            <option value="gqa">GQA / MHA / MQA (standard)</option>
+            <option value="mla">MLA — DeepSeek-style latent</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="a-layers">Layers <span class="unit">L</span></label>
+          <input type="number" id="a-layers" class="input mono" min="1" step="1" value="" placeholder="—">
+        </div>
+        <div class="field">
+          <label for="a-hidden">Hidden size <span class="unit">h</span></label>
+          <input type="number" id="a-hidden" class="input mono" min="1" step="64" value="" placeholder="—">
+        </div>
+        <div class="field">
+          <label for="a-heads">Attention heads <span class="unit">a</span></label>
+          <input type="number" id="a-heads" class="input mono" min="1" step="1" value="" placeholder="—">
+        </div>
+        <div class="field field-gqa">
+          <label for="a-kvheads">KV heads <span class="unit">k</span></label>
+          <input type="number" id="a-kvheads" class="input mono" min="1" step="1" value="" placeholder="—">
+          <p class="hint">k = a → MHA · k = 1 → MQA</p>
+        </div>
+        <div class="field field-gqa">
+          <label for="a-headdim">Head dim <span class="unit">d</span></label>
+          <input type="number" id="a-headdim" class="input mono" min="1" step="8" value="" placeholder="—">
+          <p class="hint">Auto = h / a unless overridden</p>
+        </div>
+        <div class="field field-mla" hidden>
+          <label for="a-mla-rank">KV LoRA rank <span class="unit">r</span></label>
+          <input type="number" id="a-mla-rank" class="input mono" min="0" step="16" value="" placeholder="—">
+        </div>
+        <div class="field field-mla" hidden>
+          <label for="a-mla-rope">RoPE head dim <span class="unit">d_r</span></label>
+          <input type="number" id="a-mla-rope" class="input mono" min="0" step="8" value="" placeholder="—">
+        </div>
+        <div class="field">
+          <label for="a-experts">Experts <span class="unit">E</span> <span class="tag">MoE</span></label>
+          <input type="number" id="a-experts" class="input mono" min="0" step="1" value="" placeholder="—">
+        </div>
+        <div class="field">
+          <label for="a-ept">Experts / token <span class="tag">MoE</span></label>
+          <input type="number" id="a-ept" class="input mono" min="0" step="1" value="" placeholder="—">
+          <p class="hint">0 / 0 → dense</p>
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- ======================= INFERENCE RUNTIME ======================= -->
+    <fieldset class="group tab-panel" id="g-inference" data-panel="inference">
+      <legend>Inference runtime</legend>
+      <div class="grid">
+        <div class="field">
+          <label for="i-wdtype">Weights precision</label>
+          <select id="i-wdtype" class="input">
+            <option value="2">FP16 / BF16 — 2 B/param</option>
+            <option value="1" selected>FP8 / INT8 — 1 B/param</option>
+            <option value="0.5">INT4 / FP4 — 0.5 B/param</option>
+            <option value="4">FP32 — 4 B/param</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="i-kvdtype">KV cache precision</label>
+          <select id="i-kvdtype" class="input">
+            <option value="2" selected>FP16 / BF16 — 2 B</option>
+            <option value="1">FP8 / INT8 — 1 B</option>
+            <option value="0.5">FP4 / INT4 — 0.5 B</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="i-ctx">Max context <span class="unit">tokens</span></label>
+          <input type="number" id="i-ctx" class="input mono" min="1" step="1024" value="40960">
+        </div>
+        <div class="field">
+          <label for="i-avgctx">Avg tokens / sequence <span class="unit">KV fill</span></label>
+          <input type="number" id="i-avgctx" class="input mono" min="1" step="1024" value="8192">
+        </div>
+        <div class="field">
+          <label for="i-conc">Concurrent sequences <span class="unit">batch</span></label>
+          <input type="number" id="i-conc" class="input mono" min="1" step="1" value="32">
+        </div>
+        <div class="field">
+          <label for="i-prompt">Prompt length for TTFT <span class="unit">tokens</span></label>
+          <input type="number" id="i-prompt" class="input mono" min="1" step="512" value="4096">
+        </div>
+        <div class="field">
+          <label for="i-gpu">GPU</label>
+          <select id="i-gpu" class="input"></select>
+        </div>
+        <div class="field">
+          <label for="i-tp">Tensor parallel <span class="unit">GPUs</span></label>
+          <input type="number" id="i-tp" class="input mono" min="1" step="1" value="0">
+          <p class="hint">0 = auto (minimum that fits)</p>
+        </div>
+      </div>
+      <div class="custom-hw" id="i-custom-hw" hidden>
+        <div class="grid">
+          <div class="field"><label for="i-cvram">Custom VRAM <span class="unit">GB</span></label><input type="number" id="i-cvram" class="input mono" value="80" step="1"></div>
+          <div class="field"><label for="i-cbw">Custom bandwidth <span class="unit">GB/s</span></label><input type="number" id="i-cbw" class="input mono" value="3350" step="50"></div>
+          <div class="field"><label for="i-ctf">Custom BF16 <span class="unit">TFLOP/s</span></label><input type="number" id="i-ctf" class="input mono" value="989" step="10"></div>
+          <div class="field"><label for="i-ctdp">Custom TDP <span class="unit">W</span></label><input type="number" id="i-ctdp" class="input mono" value="700" step="25"></div>
+        </div>
+      </div>
+      <details class="adv">
+        <summary>Efficiency &amp; overhead tuning</summary>
+        <div class="grid">
+          <div class="field">
+            <label for="i-bweff">HBM efficiency <span class="unit">%</span></label>
+            <input type="number" id="i-bweff" class="input mono" min="1" max="100" step="1" value="75">
+            <p class="hint">Achieved fraction of peak bandwidth in decode. Typical 60–85%.</p>
+          </div>
+          <div class="field">
+            <label for="i-mfu-prefill">Prefill MFU <span class="unit">%</span></label>
+            <input type="number" id="i-mfu-prefill" class="input mono" min="1" max="100" step="1" value="50">
+          </div>
+          <div class="field">
+            <label for="i-ovhpct">Weight overhead <span class="unit">%</span></label>
+            <input type="number" id="i-ovhpct" class="input mono" min="0" max="100" step="1" value="5">
+            <p class="hint">Fragmentation, alignment, CUDA graphs workspace.</p>
+          </div>
+          <div class="field">
+            <label for="i-fixedgb">Fixed overhead / GPU <span class="unit">GB</span></label>
+            <input type="number" id="i-fixedgb" class="input mono" min="0" step="0.5" value="2">
+            <p class="hint">CUDA context, framework runtime, KV block tables.</p>
+          </div>
+          <div class="field">
+            <label for="i-usable">Usable VRAM <span class="unit">%</span></label>
+            <input type="number" id="i-usable" class="input mono" min="50" max="100" step="1" value="90">
+          </div>
+          <div class="field">
+            <label for="i-price">GPU price <span class="unit">$/h</span></label>
+            <input type="number" id="i-price" class="input mono" min="0" step="0.1" value="2.5">
+            <p class="hint">Amortized rental rate — used for the self-host $/1M estimate. Static default; <button class="btn-ghost" id="gpu-refresh" type="button">refresh from Vast.ai market</button> <span class="mono" id="gpu-price-status"></span></p>
+          </div>
+          <div class="field">
+            <label for="i-elec">Electricity rate <span class="unit">$/kWh</span></label>
+            <input type="number" id="i-elec" class="input mono" min="0" step="0.01" value="0.12">
+            <p class="hint">US avg ≈ $0.12. Empty = marginal row hidden.</p>
+          </div>
+          <div class="field">
+            <label for="i-pue">PUE <span class="unit">facility</span></label>
+            <input type="number" id="i-pue" class="input mono" min="1" max="3" step="0.05" value="1.3">
+            <p class="hint">Datacenter 1.2–1.5 · office/home rack 1.5–2.0+</p>
+          </div>
+          <div class="field">
+            <label for="i-hostfrac">Host overhead <span class="unit">%</span></label>
+            <input type="number" id="i-hostfrac" class="input mono" min="0" max="100" step="1" value="15">
+            <p class="hint">CPU/RAM/NIC/storage draw as % of GPU draw.</p>
+          </div>
+          <div class="field">
+            <label for="i-link">Interconnect <span class="unit">GB/s</span></label>
+            <input type="number" id="i-link" class="input mono" min="0" step="10" value="900">
+            <p class="hint">NVLink 900 · NVLink4 600 · PCIe 5.0 x16 ≈ 64 · 0 = ignore TP all-reduce time</p>
+          </div>
+        </div>
+      </details>
+    </fieldset>
+
+
+    <!-- ======================= TRAINING RUNTIME ======================= -->
+    <fieldset class="group tab-panel" id="g-training" data-panel="training" hidden>
+      <legend>Training runtime</legend>
+      <div class="grid">
+        <div class="field">
+          <label for="t-tokens">Tokens to train <span class="unit">B</span></label>
+          <input type="number" id="t-tokens" class="input mono" min="0" step="100" value="15000">
+          <p class="hint">Chinchilla-optimal ≈ 20 × params · 15T = a Llama-3-8B-scale run</p>
+        </div>
+        <div class="field">
+          <label for="t-optimizer">Optimizer</label>
+          <select id="t-optimizer" class="input">
+            <option value="adamw" selected>AdamW — bf16 params + fp32 master/m/v (16 B/param)</option>
+            <option value="adamw8">AdamW 8-bit states (10 B/param)</option>
+            <option value="adafactor">Adafactor — factored 2nd moment (8 B/param)</option>
+            <option value="sgd">SGD + momentum, fp32 (12 B/param)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="t-shard">Sharding</label>
+          <select id="t-shard" class="input">
+            <option value="none">None / DDP — full replica per GPU</option>
+            <option value="zero1">ZeRO-1 — optimizer states sharded</option>
+            <option value="zero2">ZeRO-2 — optimizer + gradients sharded</option>
+            <option value="zero3" selected>ZeRO-3 / FSDP — params also sharded</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="t-gpus">GPUs <span class="unit">N</span></label>
+          <input type="number" id="t-gpus" class="input mono" min="0" step="8" value="0">
+          <p class="hint">0 = auto (minimum that fits)</p>
+        </div>
+        <div class="field">
+          <label for="t-gpu">GPU</label>
+          <select id="t-gpu" class="input"></select>
+        </div>
+        <div class="field">
+          <label for="t-mfu">MFU <span class="unit">%</span></label>
+          <input type="number" id="t-mfu" class="input mono" min="1" max="100" step="1" value="40">
+          <p class="hint">Dense runs reach 35–50%; MoE typically 25–40%.</p>
+        </div>
+        <div class="field">
+          <label for="t-seq">Sequence length</label>
+          <input type="number" id="t-seq" class="input mono" min="128" step="1024" value="8192">
+        </div>
+        <div class="field">
+          <label for="t-gbatch">Global batch <span class="unit">sequences</span></label>
+          <input type="number" id="t-gbatch" class="input mono" min="1" step="1" value="1024">
+        </div>
+        <div class="field">
+          <label for="t-mbatch">Micro-batch / GPU <span class="unit">seqs</span></label>
+          <input type="number" id="t-mbatch" class="input mono" min="1" step="1" value="1">
+        </div>
+        <div class="field">
+          <label for="t-act">Activation checkpointing</label>
+          <select id="t-act" class="input">
+            <option value="none">None — keep all activations</option>
+            <option value="selective" selected>Selective — recompute attention internals</option>
+            <option value="full">Full — recompute whole layers</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="t-price">GPU price <span class="unit">$/h</span></label>
+          <input type="number" id="t-price" class="input mono" min="0" step="0.1" value="2">
+        </div>
+      </div>
+      <div class="custom-hw" id="t-custom-hw" hidden>
+        <div class="grid">
+          <div class="field"><label for="t-cvram">Custom VRAM <span class="unit">GB</span></label><input type="number" id="t-cvram" class="input mono" value="80" step="1"></div>
+          <div class="field"><label for="t-cbw">Custom bandwidth <span class="unit">GB/s</span></label><input type="number" id="t-cbw" class="input mono" value="3350" step="50"></div>
+          <div class="field"><label for="t-ctf">Custom BF16 <span class="unit">TFLOP/s</span></label><input type="number" id="t-ctf" class="input mono" value="989" step="10"></div>
+        </div>
+      </div>
+      <details class="adv">
+        <summary>Memory model tuning (bytes per parameter)</summary>
+        <div class="grid">
+          <div class="field"><label for="t-bparam">Param bytes (bf16 = 2)</label><input type="number" id="t-bparam" class="input mono" min="0" step="0.5" value="2"></div>
+          <div class="field"><label for="t-bgrad">Gradient bytes</label><input type="number" id="t-bgrad" class="input mono" min="0" step="0.5" value="2"></div>
+          <div class="field"><label for="t-bmaster">Master-weight bytes (fp32 = 4)</label><input type="number" id="t-bmaster" class="input mono" min="0" step="0.5" value="4"></div>
+          <div class="field"><label for="t-bm">1st moment bytes</label><input type="number" id="t-bm" class="input mono" min="0" step="0.5" value="4"></div>
+          <div class="field"><label for="t-bv">2nd moment bytes</label><input type="number" id="t-bv" class="input mono" min="0" step="0.5" value="4"></div>
+          <div class="field">
+            <label for="t-actmult">Activation coefficient <span class="unit">B/elem</span></label>
+            <input type="number" id="t-actmult" class="input mono" min="0" step="1" value="34">
+            <p class="hint">Overrides the per-layer constant. 34 = selective recompute (bf16, no seq-parallel), per Korthikanti et&nbsp;al. 2022.</p>
+          </div>
+          <div class="field field-check">
+            <label for="t-logits"><input type="checkbox" id="t-logits" checked> Include logits + CE activations (s·b·V)</label>
+          </div>
+        </div>
+      </details>
+    </fieldset>
+  </section>
+
+
+  <!-- ============================ RESULTS ============================ -->
+  <aside class="results" aria-label="Results">
+    <div class="results-inner">
+
+      <section class="tab-panel" data-panel="inference">
+        <div class="results-head">
+          <h2 class="results-title">Inference <span class="results-sub" id="r-i-model"></span></h2>
+          <button class="btn-ghost" id="copy-inference" type="button">Copy report</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-value mono" id="r-i-total">—</div><div class="stat-label">Total memory</div></div>
+          <div class="stat"><div class="stat-value mono" id="r-i-gpus">—</div><div class="stat-label">Min GPUs (fit)</div></div>
+          <div class="stat"><div class="stat-value mono" id="r-i-tps">—</div><div class="stat-label">Decode tok/s · 1 stream</div></div>
+          <div class="stat"><div class="stat-value mono" id="r-i-ttft">—</div><div class="stat-label">TTFT @ prompt</div></div>
+        </div>
+        <div class="bar" id="r-i-bar" aria-hidden="true"></div>
+        <table class="breakdown mono">
+          <tbody>
+            <tr><td>Weights (checkpoint)</td><td id="r-i-weights">—</td></tr>
+            <tr><td>Weights overhead (<span id="r-i-ovhpct"></span>%)</td><td id="r-i-weightovh">—</td></tr>
+            <tr><td>KV cache · avg load</td><td id="r-i-kv">—</td></tr>
+            <tr><td>KV cache · 1 seq @ max ctx</td><td id="r-i-kvmax">—</td></tr>
+            <tr><td>Runtime / GPU (<span id="r-i-fixedn"></span>×)</td><td id="r-i-ovh">—</td></tr>
+            <tr><td>KV / token</td><td id="r-i-kvtok">—</td></tr>
+            <tr class="total"><td>Total · <span id="r-i-tpn"></span> GPU(s)</td><td id="r-i-totalt">—</td></tr>
+          </tbody>
+        </table>
+        <div class="kv-figure">
+          <div class="kv-figure-row"><span>System throughput (batched)</span><strong class="mono" id="r-i-sys">—</strong></div>
+          <div class="kv-figure-row"><span>OpenRouter API price · in / out per 1M</span><strong class="mono" id="r-i-api">—</strong></div>
+          <div class="kv-figure-row"><span>Self-host cost · 1M output tokens (decode)</span><strong class="mono" id="r-i-cost-out">—</strong></div>
+          <div class="kv-figure-row"><span>Self-host cost · 1M input tokens (prefill)</span><strong class="mono" id="r-i-cost-in">—</strong></div>
+          <div class="kv-figure-row"><span>Marginal · electricity only (owned hw)</span><strong class="mono" id="r-i-marginal">—</strong></div>
+          <div class="kv-figure-row"><span>TP all-reduce / token</span><strong class="mono" id="r-i-comm">—</strong></div>
+          <div class="kv-figure-row"><span>Weight bytes read / token</span><strong class="mono" id="r-i-wtok">—</strong></div>
+        </div>
+        <ul class="notes" id="r-i-notes"></ul>
+      </section>
+
+      <section class="tab-panel" data-panel="training" hidden>
+        <div class="results-head">
+          <h2 class="results-title">Training <span class="results-sub" id="r-t-model"></span></h2>
+          <button class="btn-ghost" id="copy-training" type="button">Copy report</button>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-value mono" id="r-t-mem">—</div><div class="stat-label">Memory / GPU</div></div>
+          <div class="stat"><div class="stat-value mono" id="r-t-gpus">—</div><div class="stat-label">GPUs</div></div>
+          <div class="stat"><div class="stat-value mono" id="r-t-flops">—</div><div class="stat-label">Total compute</div></div>
+          <div class="stat"><div class="stat-value mono" id="r-t-time">—</div><div class="stat-label">Wall-clock time</div></div>
+        </div>
+        <div class="bar" id="r-t-bar" aria-hidden="true"></div>
+        <table class="breakdown mono">
+          <tbody>
+            <tr><td>Parameters</td><td id="r-t-params">—</td></tr>
+            <tr><td>Gradients</td><td id="r-t-grads">—</td></tr>
+            <tr><td>Optimizer (master + moments)</td><td id="r-t-opt">—</td></tr>
+            <tr><td>Activations / GPU</td><td id="r-t-act">—</td></tr>
+            <tr><td>Logits + loss</td><td id="r-t-logits">—</td></tr>
+            <tr class="total"><td>Per GPU</td><td id="r-t-total">—</td></tr>
+          </tbody>
+        </table>
+        <div class="kv-figure">
+          <div class="kv-figure-row"><span>Tokens / second (cluster)</span><strong class="mono" id="r-t-tps">—</strong></div>
+          <div class="kv-figure-row"><span>Gradient accumulation steps</span><strong class="mono" id="r-t-accum">—</strong></div>
+          <div class="kv-figure-row"><span>Checkpoint size (params+opt)</span><strong class="mono" id="r-t-ckpt">—</strong></div>
+          <div class="kv-figure-row"><span>Estimated cost</span><strong class="mono" id="r-t-cost">—</strong></div>
+        </div>
+        <ul class="notes" id="r-t-notes"></ul>
+      </section>
+
+
+      <section class="tab-panel" data-panel="method" hidden>
+        <h2 class="results-title">Methodology</h2>
+        <div class="method">
+          <h3>Inference memory</h3>
+          <p class="formula mono">W = P × b<sub>w</sub> &nbsp;(checkpoint bytes, shown raw)</p>
+          <p>P = total params, b<sub>w</sub> = bytes/param (bf16 2, fp8 1, int4 0.5).</p>
+          <p class="formula mono">W<sub>overhead</sub> = W × overhead% &nbsp;·&nbsp; Total = W + W<sub>overhead</sub> + KV<sub>tot</sub> + fixed×TP</p>
+          <p class="formula mono">KV<sub>tok</sub> = 2·L·k·d·b<sub>kv</sub> &nbsp;(GQA/MHA)&nbsp; · &nbsp;L·(r+d<sub>r</sub>)·b<sub>kv</sub> &nbsp;(MLA)</p>
+          <p class="formula mono">KV<sub>tot</sub> = KV<sub>tok</sub> × S<sub>avg</sub> × batch</p>
+
+          <h3>Inference throughput — memory-bound roofline</h3>
+          <p class="formula mono">tok/s = (BW × TP × η) / (P<sub>act</sub>·b<sub>w</sub> + KV<sub>tok</sub>·S<sub>avg</sub>)</p>
+          <p class="formula mono">TTFT ≈ 2·P<sub>act</sub>·S<sub>prompt</sub> / (TFLOP/s × TP × MFU<sub>prefill</sub>)</p>
+          <p class="formula mono">comm<sub>tok</sub> ≈ 4·L·h·b<sub>w</sub>·(TP−1)/TP ÷ link BW</p>
+
+          <h3>Training memory (per GPU, sharded by ZeRO stage)</h3>
+          <p class="formula mono">params = P·b<sub>p</sub>/s₃&nbsp; grads = P·b<sub>g</sub>/s₂&nbsp; opt = P·(b<sub>m</sub>+b<sub>v</sub>+b<sub>master</sub>)/s₁</p>
+          <p class="formula mono">act = L·s·b·h·c&nbsp; c: none = 34+5·a·s/h · selective = 34 · full = 2</p>
+          <p class="formula mono">logits = s·b·V·4·2</p>
+
+          <h3>Training compute &amp; time</h3>
+          <p class="formula mono">FLOPs = 6·P<sub>act</sub>·D</p>
+          <p class="formula mono">t = FLOPs / (N × TFLOP/s × MFU)</p>
+
+          <p class="method-src">Full derivations, assumptions and references: <a href="docs/calculations.md" target="_blank" rel="noopener">docs/calculations.md</a>. Constants (34, 5·a·s/h, 6PD) come from Korthikanti et&nbsp;al. 2022 and Kaplan et&nbsp;al. 2020; every constant is overridable in the tuning panels.</p>
+        </div>
+      </section>
+
+    </div>
+  </aside>
+
+</main>
+
+<section class="insights" aria-label="Pricing insights">
+  <h2 class="insights-title">Pricing graph <span class="insights-sub">sweep any input, live from current setup</span></h2>
+  <div class="graph-controls">
+    <div class="field"><label for="g-x">X axis</label><select id="g-x" class="input">
+      <option value="params" selected>Params (B)</option>
+      <option value="tp">GPUs / TP</option>
+      <option value="batch">Batch (streams)</option>
+      <option value="avgCtx">Avg ctx / seq</option>
+      <option value="prompt">Prompt tokens</option>
+    </select></div>
+    <div class="field"><label for="g-y">Y axis</label><select id="g-y" class="input">
+      <option value="costOut" selected>Self-host $/1M out</option>
+      <option value="costIn">Self-host $/1M in</option>
+      <option value="marginal">Marginal $/1M</option>
+      <option value="sysTps">System tok/s</option>
+      <option value="tps1">Single-stream tok/s</option>
+      <option value="totalGb">Total memory GB</option>
+      <option value="ttft">TTFT (s)</option>
+    </select></div>
+    <div class="field"><label for="g-min">Min</label><input type="number" id="g-min" class="input mono" value="1" step="any"></div>
+    <div class="field"><label for="g-max">Max</label><input type="number" id="g-max" class="input mono" value="70" step="any"></div>
+    <div class="field"><label for="g-steps">Steps</label><input type="number" id="g-steps" class="input mono" value="12" min="3" max="40" step="1"></div>
+    <div class="field field-check"><label for="g-log"><input type="checkbox" id="g-log"> Log X</label></div>
+  </div>
+  <div class="insight-card graph-card"><svg id="g-chart" viewBox="0 0 400 160" role="img"></svg><p class="hint" id="g-cap"></p></div>
+</section>
+
+<footer class="footer">
+  <span>Experimental estimates — verify before spending · Static app · no build step · no keys</span>
+  <span>Found a bug? Please report it with the model, your inputs, and what you expected.<!-- TODO: link repo issues page here once uploaded --></span>
+  <span class="mono" id="footer-stats"></span>
+</footer>
+
+<script src="assets/js/calc.js" defer></script>
+<script src="assets/js/gpu-prices.js" defer></script>
+<script src="assets/js/openrouter.js" defer></script>
+<script src="assets/js/hf-arch.js" defer></script>
+<script src="assets/js/app.js" defer></script>
+</body>
+</html>
+
